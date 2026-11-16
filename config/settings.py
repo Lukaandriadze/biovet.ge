@@ -61,13 +61,13 @@ if not DEBUG:
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 ALLOWED_HOSTS = [
-    "biovet.onrender.com",
+    "biovet-ge.onrender.com",
     "localhost",
     "127.0.0.1",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://biovet.onrender.com",
+    "https://biovet-ge.onrender.com",
 ]
 # ------------------------------------------------------------------
 # Application definition
@@ -119,27 +119,14 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # ------------------------------------------------------------------
 # Database
 # ------------------------------------------------------------------
-import os
-from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-
+# ------------------------------------------------------------------
+# Database
+# ------------------------------------------------------------------
 if os.environ.get("RENDER"):
     DATABASE_PATH = "/var/data/db.sqlite3"
 else:
     DATABASE_PATH = BASE_DIR / "db.sqlite3"
-
-import os
-from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-
-if os.environ.get("RENDER"):
-    DATABASE_PATH = "/var/data/db.sqlite3"
-else:
-    DATABASE_PATH = BASE_DIR / "db.sqlite3"
-
 
 DATABASES = {
     "default": {
