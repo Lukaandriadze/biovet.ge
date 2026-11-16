@@ -129,6 +129,18 @@ if os.environ.get("RENDER"):
 else:
     DATABASE_PATH = BASE_DIR / "db.sqlite3"
 
+import os
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+if os.environ.get("RENDER"):
+    DATABASE_PATH = "/var/data/db.sqlite3"
+else:
+    DATABASE_PATH = BASE_DIR / "db.sqlite3"
+
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
