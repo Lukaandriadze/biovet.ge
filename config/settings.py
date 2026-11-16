@@ -60,16 +60,14 @@ if not DEBUG:
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-
-
 ALLOWED_HOSTS = [
-    "biovet-ge.onrender.com",
+    "biovet.onrender.com",
     "localhost",
     "127.0.0.1",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://biovet-ge.onrender.com",
+    "https://biovet.onrender.com",
 ]
 # ------------------------------------------------------------------
 # Application definition
@@ -121,21 +119,13 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # ------------------------------------------------------------------
 # Database
 # ------------------------------------------------------------------
-
-# ------------------------------------------------------------------
-# Database
-# ------------------------------------------------------------------
-if os.environ.get("RENDER"):
-    DATABASE_PATH = "/var/data/db.sqlite3"
-else:
-    DATABASE_PATH = BASE_DIR / "db.sqlite3"
-
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": DATABASE_PATH,
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
 
 # ------------------------------------------------------------------
 # Auth (მხოლოდ ადმინ-პანელისთვის)
