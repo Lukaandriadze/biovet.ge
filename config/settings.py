@@ -45,7 +45,7 @@ def env_list(name, default=''):
 # ძირითადი უსაფრთხოება
 # ------------------------------------------------------------------
 DEBUG = env_bool('DJANGO_DEBUG', False)
-DEBUG = False
+
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '')
 if not SECRET_KEY:
     if DEBUG:
@@ -62,17 +62,12 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 ALLOWED_HOSTS = [
     "biovet-ge.onrender.com",
-STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-ALLOWED_HOSTS = [
-    "biovet.onrender.com",
     "localhost",
     "127.0.0.1",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     "https://biovet-ge.onrender.com/",
-    "https://biovet.onrender.com",
 ]
 # ------------------------------------------------------------------
 # Application definition
