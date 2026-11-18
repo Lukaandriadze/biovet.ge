@@ -1,8 +1,8 @@
+
 import csv
 from decimal import Decimal, ROUND_HALF_UP
 
 from django import forms
-from django.db import models
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
@@ -22,25 +22,6 @@ admin.site.index_title = "მართვის პანელი"
 
 
 # ==========================================================
-# დამხმარე ფუნქცია სურათის URL-ისთვის
-# ==========================================================
-
-def _get_image_url(obj):
-    """აბრუნებს სურათის URL-ს (ატვირთული ან გარე ბმული), ან ''-ს."""
-    if not obj or not getattr(obj, "pk", None):
-        return ""
-
-    image = getattr(obj, "image", None)
-    if image:
-        try:
-            return image.url
-        except ValueError:
-            pass
-
-    return getattr(obj, "img", "") or ""
-
-
-# ==========================================================
 # ფასის მასობრივი ცვლილება
 # ==========================================================
 
@@ -48,12 +29,15 @@ def _price_action(percent):
     factor = Decimal(100 + percent) / Decimal(100)
     sign = "+" if percent > 0 else ""
 
-    @admin.action(description=f"ფასის შეცვლა: {sign}{percent}%")
+    # მნიშვნელოვანი: %% საჭიროა Django Admin-ის action description-ში
+    @admin.action(description=f"ფასის შეცვლა: {sign}{percent}%%")
     def action(modeladmin, request, queryset):
         products = list(queryset)
 
         for product in products:
-            product.price = (product.price * factor).quantize(
+            product.price = (
+                product.price * factor
+            ).quantize(
                 Decimal("0.01"),
                 rounding=ROUND_HALF_UP,
             )
@@ -66,7 +50,10 @@ def _price_action(percent):
             messages.SUCCESS,
         )
 
-    action.__name__ = f"price_{'plus' if percent > 0 else 'minus'}_{abs(percent)}"
+    action.__name__ = (
+        f"price_{'plus' if percent > 0 else 'minus'}_{abs(percent)}"
+    )
+
     return action
 
 
@@ -86,6 +73,7 @@ def _badge_action(key, text, label):
         )
 
     action.__name__ = f"badge_{key}"
+
     return action
 
 
@@ -96,6 +84,7 @@ def _badge_action(key, text, label):
 @admin.action(description="საიტზე გამოჩენა (ჩართვა)")
 def make_active(modeladmin, request, queryset):
     count = queryset.update(is_active=True)
+
     modeladmin.message_user(
         request,
         f"{count} პროდუქტი ჩანს საიტზე.",
@@ -106,6 +95,7 @@ def make_active(modeladmin, request, queryset):
 @admin.action(description="საიტიდან დამალვა (გამორთვა)")
 def make_inactive(modeladmin, request, queryset):
     count = queryset.update(is_active=False)
+
     modeladmin.message_user(
         request,
         f"{count} პროდუქტი დაიმალა.",
@@ -129,6 +119,8 @@ def duplicate_products(modeladmin, request, queryset):
         product.name = f"{product.name} (ასლი)"
         product.is_active = False
 
+        # ატვირთული სურათის ფაილი უცვლელი რჩება;
+        # ასლი საიტზე დამალული იქნება.
         product.save()
 
         count += 1
@@ -149,7 +141,10 @@ def export_products_csv(modeladmin, request, queryset):
     response = HttpResponse(
         content_type="text/csv; charset=utf-8-sig"
     )
-    response["Content-Disposition"] = 'attachment; filename="products.csv"'
+
+    response["Content-Disposition"] = (
+        'attachment; filename="products.csv"'
+    )
 
     writer = csv.writer(response)
 
@@ -159,7 +154,6 @@ def export_products_csv(modeladmin, request, queryset):
         "კატეგორია",
         "ფასი",
         "ბეჯი",
-        "სტატუსი",
         "ჩანს საიტზე",
         "სურათი",
         "აღწერა",
@@ -168,15 +162,19 @@ def export_products_csv(modeladmin, request, queryset):
     products = queryset.select_related("category")
 
     for product in products.iterator():
+        image_url = product.img or ""
+
+        if product.image:
+            image_url = product.image.url
+
         writer.writerow([
             product.id,
             product.name,
-            product.category.name if product.category else "",
+            product.category.name,
             product.price,
             product.badge,
-            product.status,
             "კი" if product.is_active else "არა",
-            _get_image_url(product),
+            image_url,
             product.description,
         ])
 
@@ -221,14 +219,15 @@ class ImageFilter(admin.SimpleListFilter):
         )
 
     def queryset(self, request, queryset):
-        empty_img = models.Q(img="") | models.Q(img__isnull=True)
-        empty_image = models.Q(image="") | models.Q(image__isnull=True)
-
         if self.value() == "yes":
-            return queryset.exclude(empty_img & empty_image)
+            return queryset.exclude(
+                models.Q(img="") & models.Q(image="")
+            )
 
         if self.value() == "no":
-            return queryset.filter(empty_img & empty_image)
+            return queryset.filter(
+                models.Q(img="") & models.Q(image="")
+            )
 
         return queryset
 
@@ -236,6 +235,10 @@ class ImageFilter(admin.SimpleListFilter):
 # ==========================================================
 # პროდუქტის ადმინისტრირება
 # ==========================================================
+
+if admin.site.is_registered(Product):
+    admin.site.unregister(Product)
+
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
@@ -248,31 +251,24 @@ class ProductAdmin(admin.ModelAdmin):
         "category",
         "price",
         "badge",
-        "status",
         "is_active",
         "created_at",
     )
 
-    list_display_links = (
-        "id",
-        "thumb",
-        "name",
-    )
+    list_display_links = ("id", "thumb", "name")
 
     list_editable = (
         "price",
         "badge",
-        "status",
         "is_active",
     )
 
     list_filter = (
-        "status",
         "is_active",
         "category",
         "badge",
         ImageFilter,
-        ("created_at", admin.DateFieldListFilter),
+        "created_at",
     )
 
     search_fields = (
@@ -308,7 +304,11 @@ class ProductAdmin(admin.ModelAdmin):
         _price_action(-20),
 
         _badge_action("new", "ახალი", "ბეჯი: ახალი"),
-        _badge_action("sale", "ფასდაკლება", "ბეჯი: ფასდაკლება"),
+        _badge_action(
+            "sale",
+            "ფასდაკლება",
+            "ბეჯი: ფასდაკლება",
+        ),
         _badge_action("hit", "ჰიტი", "ბეჯი: ჰიტი"),
         _badge_action("clear", "", "ბეჯის წაშლა"),
     ]
@@ -322,7 +322,6 @@ class ProductAdmin(admin.ModelAdmin):
                     "category",
                     "price",
                     "badge",
-                    "status",
                     "is_active",
                 )
             },
@@ -354,27 +353,42 @@ class ProductAdmin(admin.ModelAdmin):
 
     @admin.display(description="სურათი")
     def thumb(self, obj):
-        url = _get_image_url(obj)
-        if url:
+        image_url = ""
+
+        if obj.image:
+            image_url = obj.image.url
+        elif obj.img:
+            image_url = obj.img
+
+        if image_url:
             return format_html(
                 '<img src="{}" '
                 'style="height:44px;width:44px;'
                 'object-fit:contain;border-radius:6px;" '
-                'loading="lazy" alt="">',
-                url,
+                'loading="lazy">',
+                image_url,
             )
+
         return "—"
 
     @admin.display(description="მიმდინარე სურათი")
     def preview(self, obj):
-        url = _get_image_url(obj)
-        if url:
-            return format_html(
-                '<img src="{}" '
-                'style="max-height:200px;max-width:300px;'
-                'object-fit:contain;border-radius:8px;" alt="">',
-                url,
-            )
+        if obj:
+            image_url = ""
+
+            if obj.image:
+                image_url = obj.image.url
+            elif obj.img:
+                image_url = obj.img
+
+            if image_url:
+                return format_html(
+                    '<img src="{}" '
+                    'style="max-height:200px;max-width:300px;'
+                    'object-fit:contain;border-radius:8px;">',
+                    image_url,
+                )
+
         return "სურათი არ არის"
 
 
@@ -389,12 +403,8 @@ class ProfileInline(admin.StackedInline):
     verbose_name_plural = "პროფილი"
 
 
-# მნიშვნელოვანია: ჯერ ვხსნით ნაგულისხმევ რეგისტრაციას,
-# რადგან django.contrib.auth ავტომატურად არეგისტრირებს User-ს.
-try:
+if admin.site.is_registered(User):
     admin.site.unregister(User)
-except admin.sites.NotRegistered:
-    pass
 
 
 @admin.register(User)
@@ -429,6 +439,10 @@ class UserAdmin(BaseUserAdmin):
 # ==========================================================
 # პროფილების ადმინისტრირება
 # ==========================================================
+
+if admin.site.is_registered(Profile):
+    admin.site.unregister(Profile)
+
 
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
