@@ -151,6 +151,7 @@ def export_products_csv(modeladmin, request, queryset):
         "კატეგორია",
         "ფასი",
         "ბეჯი",
+        "სტატუსი",
         "ჩანს საიტზე",
         "სურათი",
         "აღწერა",
@@ -158,11 +159,17 @@ def export_products_csv(modeladmin, request, queryset):
 
     products = queryset.select_related("category")
 
+    has_status = hasattr(Product, "status")
+
     for product in products.iterator():
         image_url = product.img or ""
 
         if product.image:
             image_url = product.image.url
+
+        status_value = (
+            getattr(product, "status", "") if has_status else ""
+        )
 
         writer.writerow([
             product.id,
@@ -170,6 +177,7 @@ def export_products_csv(modeladmin, request, queryset):
             product.category.name,
             product.price,
             product.badge,
+            status_value,
             "კი" if product.is_active else "არა",
             image_url,
             product.description,
@@ -230,7 +238,7 @@ class ImageFilter(admin.SimpleListFilter):
 
 
 # ==========================================================
-# სტატუსის ფილტრი (უსტატუსო + სტატუსიანი)
+# სტატუსის ფილტრი — უსტატუსო + სტატუსიანი
 # ==========================================================
 
 class StatusFilter(admin.SimpleListFilter):
@@ -239,37 +247,34 @@ class StatusFilter(admin.SimpleListFilter):
 
     def lookups(self, request, model_admin):
         return (
-            ("no_image", "სურათის გარეშე"),
-            ("has_image", "სურათიანი"),
-            ("active", "აქტიური (საიტზე ჩანს)"),
-            ("inactive", "დამალული"),
-            ("empty", "უსტატუსო (სურათის გარეშე + დამალული)"),
+            ("with_status", "სტატუსიანი (status აქვს)"),
+            ("no_status", "უსტატუსო (status არ აქვს)"),
+            ("hidden", "დამალული (hidden)"),
+            ("no_image", "სურათის გარეშე (no_image)"),
         )
 
     def queryset(self, request, queryset):
+        # თუ მოდელს საერთოდ არ აქვს status ველი — არ ფილტრავს
+        if not hasattr(Product, "status"):
+            return queryset
+
         value = self.value()
 
-        if value == "no_image":
-            return queryset.filter(
-                models.Q(img="") & models.Q(image="")
-            )
-
-        if value == "has_image":
+        if value == "with_status":
             return queryset.exclude(
-                models.Q(img="") & models.Q(image="")
+                models.Q(status="") | models.Q(status__isnull=True)
             )
 
-        if value == "active":
-            return queryset.filter(is_active=True)
-
-        if value == "inactive":
-            return queryset.filter(is_active=False)
-
-        if value == "empty":
-            # "უსტატუსო" = არც სურათი აქვს და არც აქტიურია
+        if value == "no_status":
             return queryset.filter(
-                models.Q(img="") & models.Q(image="")
-            ).filter(is_active=False)
+                models.Q(status="") | models.Q(status__isnull=True)
+            )
+
+        if value == "hidden":
+            return queryset.filter(status="hidden")
+
+        if value == "no_image":
+            return queryset.filter(status="no_image")
 
         return queryset
 
@@ -309,7 +314,7 @@ class ProductAdmin(admin.ModelAdmin):
         "is_active",
         "category",
         "badge",
-        StatusFilter,      # ← ახალი სტატუსის ფილტრი
+        StatusFilter,      # ← სტატუსის ფილტრი
         ImageFilter,
         "created_at",
     )
