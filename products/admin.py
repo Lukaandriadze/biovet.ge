@@ -464,3 +464,52 @@ class ProfileAdmin(admin.ModelAdmin):
     )
 
     raw_id_fields = ("user",)
+
+
+
+
+
+
+
+
+
+
+from django.contrib import admin
+from .models import Product, Profile
+
+
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "name",
+        "price",
+        "category",
+        "status",
+        "is_active",
+        "created_at",
+    )
+
+    list_filter = (
+        "status",
+        "is_active",
+        "category",
+    )
+
+    search_fields = (
+        "name",
+        "description",
+    )
+
+    list_per_page = 50
+
+
+@admin.register(Profile)
+class ProfileAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "user",
+        "first_name",
+        "last_name",
+        "phone",
+    )
