@@ -1,6 +1,6 @@
 import csv
 from decimal import Decimal, ROUND_HALF_UP
- 
+
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
@@ -8,31 +8,31 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.http import HttpResponse
 from django.utils.html import format_html
- 
+
 from .models import Product, Profile
- 
- 
+
+
 # ==========================================================
 # Django Admin-ის სათაური
 # ==========================================================
- 
+
 admin.site.site_header = "Biovet – ადმინისტრირება"
 admin.site.site_title = "Biovet ადმინი"
 admin.site.index_title = "მართვის პანელი"
- 
- 
+
+
 # ==========================================================
 # ფასის მასობრივი ცვლილება
 # ==========================================================
- 
+
 def _price_action(percent):
     factor = Decimal(100 + percent) / Decimal(100)
     sign = "+" if percent > 0 else ""
- 
+
     @admin.action(description=f"ფასის შეცვლა: {sign}{percent}%%")
     def action(modeladmin, request, queryset):
         products = list(queryset)
- 
+
         for product in products:
             product.price = (
                 product.price * factor
@@ -40,159 +40,159 @@ def _price_action(percent):
                 Decimal("0.01"),
                 rounding=ROUND_HALF_UP,
             )
- 
+
         Product.objects.bulk_update(products, ["price"])
- 
+
         modeladmin.message_user(
             request,
             f"{len(products)} პროდუქტის ფასი შეიცვალა ({sign}{percent}%).",
             messages.SUCCESS,
         )
- 
+
     action.__name__ = (
         f"price_{'plus' if percent > 0 else 'minus'}_{abs(percent)}"
     )
- 
+
     return action
- 
- 
+
+
 # ==========================================================
 # პროდუქტის ბეჯების მასობრივი ცვლილება
 # ==========================================================
- 
+
 def _badge_action(key, text, label):
     @admin.action(description=label)
     def action(modeladmin, request, queryset):
         count = queryset.update(badge=text)
- 
+
         modeladmin.message_user(
             request,
             f"{count} პროდუქტის ბეჯი განახლდა.",
             messages.SUCCESS,
         )
- 
+
     action.__name__ = f"badge_{key}"
- 
+
     return action
- 
- 
+
+
 # ==========================================================
 # პროდუქტის გამოჩენა / დამალვა
 # ==========================================================
- 
+
 @admin.action(description="საიტზე გამოჩენა (ჩართვა)")
 def make_active(modeladmin, request, queryset):
     count = queryset.update(is_active=True)
- 
+
     modeladmin.message_user(
         request,
         f"{count} პროდუქტი ჩანს საიტზე.",
         messages.SUCCESS,
     )
- 
- 
+
+
 @admin.action(description="საიტიდან დამალვა (გამორთვა)")
 def make_inactive(modeladmin, request, queryset):
     count = queryset.update(is_active=False)
- 
+
     modeladmin.message_user(
         request,
         f"{count} პროდუქტი დაიმალა.",
         messages.WARNING,
     )
- 
- 
+
+
 # ==========================================================
 # სტატუსის მასობრივი ცვლილება
 # ==========================================================
- 
+
 @admin.action(description="სტატუსი: დამალული (hidden) + საიტიდან დამალვა")
 def set_status_hidden(modeladmin, request, queryset):
     count = queryset.update(status="hidden", is_active=False)
- 
+
     modeladmin.message_user(
         request,
         f"{count} პროდუქტს მიენიჭა სტატუსი „დამალული“.",
         messages.WARNING,
     )
- 
- 
+
+
 @admin.action(description="სტატუსი: მარაგშია (in_stock)")
 def set_status_in_stock(modeladmin, request, queryset):
     count = queryset.update(status="in_stock")
- 
+
     modeladmin.message_user(
         request,
         f"{count} პროდუქტს მიენიჭა სტატუსი „მარაგშია“.",
         messages.SUCCESS,
     )
- 
- 
+
+
 @admin.action(description="სტატუსი: ამოიწურა (out_of_stock)")
 def set_status_out_of_stock(modeladmin, request, queryset):
     count = queryset.update(status="out_of_stock")
- 
+
     modeladmin.message_user(
         request,
         f"{count} პროდუქტს მიენიჭა სტატუსი „ამოიწურა“.",
         messages.SUCCESS,
     )
- 
- 
+
+
 @admin.action(description="სტატუსის გასუფთავება (უსტატუსო)")
 def clear_status(modeladmin, request, queryset):
     count = queryset.update(status="")
- 
+
     modeladmin.message_user(
         request,
         f"{count} პროდუქტს სტატუსი მოეხსნა.",
         messages.SUCCESS,
     )
- 
- 
+
+
 # ==========================================================
 # პროდუქტების დუბლირება
 # ==========================================================
- 
+
 @admin.action(description="პროდუქტის დუბლირება (ასლის შექმნა)")
 def duplicate_products(modeladmin, request, queryset):
     count = 0
- 
+
     for product in queryset.iterator():
         product.pk = None
         product.id = None
         product._state.adding = True
- 
+
         product.name = f"{product.name} (ასლი)"
         product.is_active = False
- 
+
         product.save()
- 
+
         count += 1
- 
+
     modeladmin.message_user(
         request,
         f"შეიქმნა {count} ასლი. ასლები დამალულია საიტიდან.",
         messages.SUCCESS,
     )
- 
- 
+
+
 # ==========================================================
 # CSV ექსპორტი — Excel-ისთვის
 # ==========================================================
- 
+
 @admin.action(description="CSV-ში ექსპორტი (Excel-ისთვის)")
 def export_products_csv(modeladmin, request, queryset):
     response = HttpResponse(
         content_type="text/csv; charset=utf-8-sig"
     )
- 
+
     response["Content-Disposition"] = (
         'attachment; filename="products.csv"'
     )
- 
+
     writer = csv.writer(response)
- 
+
     writer.writerow([
         "ID",
         "დასახელება",
@@ -204,15 +204,15 @@ def export_products_csv(modeladmin, request, queryset):
         "სურათი",
         "აღწერა",
     ])
- 
+
     products = queryset.select_related("category")
- 
+
     for product in products.iterator():
         image_url = product.img or ""
- 
+
         if product.image:
             image_url = product.image.url
- 
+
         writer.writerow([
             product.id,
             product.name,
@@ -224,14 +224,14 @@ def export_products_csv(modeladmin, request, queryset):
             image_url,
             product.description,
         ])
- 
+
     return response
- 
- 
+
+
 # ==========================================================
 # პროდუქტის ფორმა
 # ==========================================================
- 
+
 class ProductAdminForm(forms.ModelForm):
     img = forms.CharField(
         label="სურათის ბმული",
@@ -245,50 +245,50 @@ class ProductAdminForm(forms.ModelForm):
             "ან გამოიყენე ქვემოთ მოცემული ატვირთვის ველი."
         ),
     )
- 
+
     class Meta:
         model = Product
         fields = "__all__"
- 
- 
+
+
 # ==========================================================
 # სურათის ფილტრი
 # ==========================================================
- 
+
 class ImageFilter(admin.SimpleListFilter):
     title = "სურათი"
     parameter_name = "has_image"
- 
+
     def lookups(self, request, model_admin):
         return (
             ("yes", "სურათიანი"),
             ("no", "სურათის გარეშე"),
         )
- 
+
     def queryset(self, request, queryset):
         if self.value() == "yes":
             return queryset.exclude(
                 models.Q(img="") & models.Q(image="")
             )
- 
+
         if self.value() == "no":
             return queryset.filter(
                 models.Q(img="") & models.Q(image="")
             )
- 
+
         return queryset
- 
- 
+
+
 # ==========================================================
 # სტატუსის ფილტრი
 # parameter_name განსხვავდება მოდელის ველის სახელისგან ("status"),
 # რომ URL-ის პარამეტრი არ აეწყოს ველის ბუნებრივ ფილტრს.
 # ==========================================================
- 
+
 class StatusFilter(admin.SimpleListFilter):
     title = "სტატუსი"
     parameter_name = "status_filter"
- 
+
     def lookups(self, request, model_admin):
         return (
             ("hidden", "დამალული (hidden)"),
@@ -298,34 +298,34 @@ class StatusFilter(admin.SimpleListFilter):
             ("with_status", "ყველა სტატუსიანი"),
             ("no_status", "უსტატუსო"),
         )
- 
+
     def queryset(self, request, queryset):
         value = self.value()
- 
+
         if value in ("hidden", "no_image", "in_stock", "out_of_stock"):
             return queryset.filter(status=value)
- 
+
         if value == "with_status":
             return queryset.exclude(status="")
- 
+
         if value == "no_status":
             return queryset.filter(status="")
- 
+
         return queryset
- 
- 
+
+
 # ==========================================================
 # პროდუქტის ადმინისტრირება
 # ==========================================================
- 
+
 if admin.site.is_registered(Product):
     admin.site.unregister(Product)
- 
- 
+
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     form = ProductAdminForm
- 
+
     list_display = (
         "id",
         "thumb",
@@ -337,16 +337,16 @@ class ProductAdmin(admin.ModelAdmin):
         "is_active",
         "created_at",
     )
- 
+
     list_display_links = ("id", "thumb", "name")
- 
+
     list_editable = (
         "price",
         "badge",
         "status",          # ← დაემატა
         "is_active",
     )
- 
+
     list_filter = (
         StatusFilter,      # ← სტატუსის ფილტრი
         "is_active",
@@ -355,45 +355,45 @@ class ProductAdmin(admin.ModelAdmin):
         ImageFilter,
         "created_at",
     )
- 
+
     search_fields = (
         "name",
         "description",
         "category__name",
     )
- 
+
     list_select_related = ("category",)
- 
+
     list_per_page = 50
     ordering = ("-id",)
     save_on_top = True
     save_as = True
- 
+
     readonly_fields = (
         "preview",
         "created_at",
     )
- 
+
     actions = [
         make_active,
         make_inactive,
- 
+
         set_status_hidden,
         set_status_in_stock,
         set_status_out_of_stock,
         clear_status,
- 
+
         duplicate_products,
         export_products_csv,
- 
+
         _price_action(5),
         _price_action(10),
         _price_action(20),
- 
+
         _price_action(-5),
         _price_action(-10),
         _price_action(-20),
- 
+
         _badge_action("new", "ახალი", "ბეჯი: ახალი"),
         _badge_action(
             "sale",
@@ -403,7 +403,7 @@ class ProductAdmin(admin.ModelAdmin):
         _badge_action("hit", "ჰიტი", "ბეჯი: ჰიტი"),
         _badge_action("clear", "", "ბეჯის წაშლა"),
     ]
- 
+
     fieldsets = (
         (
             "ძირითადი ინფორმაცია",
@@ -442,16 +442,16 @@ class ProductAdmin(admin.ModelAdmin):
             },
         ),
     )
- 
+
     @admin.display(description="სურათი")
     def thumb(self, obj):
         image_url = ""
- 
+
         if obj.image:
             image_url = obj.image.url
         elif obj.img:
             image_url = obj.img
- 
+
         if image_url:
             return format_html(
                 '<img src="{}" '
@@ -460,19 +460,19 @@ class ProductAdmin(admin.ModelAdmin):
                 'loading="lazy">',
                 image_url,
             )
- 
+
         return "—"
- 
+
     @admin.display(description="მიმდინარე სურათი")
     def preview(self, obj):
         if obj:
             image_url = ""
- 
+
             if obj.image:
                 image_url = obj.image.url
             elif obj.img:
                 image_url = obj.img
- 
+
             if image_url:
                 return format_html(
                     '<img src="{}" '
@@ -480,29 +480,29 @@ class ProductAdmin(admin.ModelAdmin):
                     'object-fit:contain;border-radius:8px;">',
                     image_url,
                 )
- 
+
         return "სურათი არ არის"
- 
- 
+
+
 # ==========================================================
 # მომხმარებელი და პროფილი
 # ==========================================================
- 
+
 class ProfileInline(admin.StackedInline):
     model = Profile
     can_delete = False
     extra = 0
     verbose_name_plural = "პროფილი"
- 
- 
+
+
 if admin.site.is_registered(User):
     admin.site.unregister(User)
- 
- 
+
+
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     inlines = [ProfileInline]
- 
+
     list_display = (
         "username",
         "email",
@@ -512,30 +512,30 @@ class UserAdmin(BaseUserAdmin):
         "is_active",
         "date_joined",
     )
- 
+
     list_filter = (
         "is_staff",
         "is_superuser",
         "is_active",
         "date_joined",
     )
- 
+
     search_fields = (
         "username",
         "email",
         "first_name",
         "last_name",
     )
- 
- 
+
+
 # ==========================================================
 # პროფილების ადმინისტრირება
 # ==========================================================
- 
+
 if admin.site.is_registered(Profile):
     admin.site.unregister(Profile)
- 
- 
+
+
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
     list_display = (
@@ -545,7 +545,7 @@ class ProfileAdmin(admin.ModelAdmin):
         "phone",
         "address",
     )
- 
+
     search_fields = (
         "user__username",
         "user__email",
@@ -554,6 +554,5 @@ class ProfileAdmin(admin.ModelAdmin):
         "phone",
         "address",
     )
- 
+
     raw_id_fields = ("user",)
- 

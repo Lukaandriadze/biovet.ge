@@ -37,7 +37,7 @@ def products_page(request):
     max_price = request.GET.get('max_price', '').strip()
     sort = request.GET.get('sort', 'new')
 
-    products = Product.objects.select_related('category').filter(is_active=True)
+    products = Product.objects.select_related('category').filter(is_active=True).exclude(status='hidden')
 
     # ==================== კატეგორიის ფილტრი ====================
     if category_slug and category_slug not in ('all', 'ყველა'):
@@ -120,7 +120,7 @@ def products_page(request):
 @ensure_csrf_cookie
 def product_detail(request, product_id):
     product = get_object_or_404(
-        Product.objects.select_related('category').filter(is_active=True),
+        Product.objects.select_related('category').filter(is_active=True).exclude(status='hidden'),
         id=product_id
     )
 
@@ -128,6 +128,7 @@ def product_detail(request, product_id):
         Product.objects
         .select_related('category')
         .filter(category=product.category, is_active=True)
+        .exclude(status='hidden')
         .exclude(id=product.id)[:4]
     )
 

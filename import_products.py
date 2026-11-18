@@ -13,13 +13,21 @@ from products.models import Product
 from categories.models import Category
 
 
-def import_products():
-    # ბაზაში უკვე პროდუქტებია -> არაფერს ვეხებით (ადმინიდან შეცვლილი/წაშლილი პროდუქტები შენარჩუნდება).
-    # JSON გამოიყენება მხოლოდ მაშინ, როცა ბაზა ცარიელია.
-    if Product.objects.exists():
-        print(f"ბაზაში უკვე {Product.objects.count()} პროდუქტია — იმპორტი გამოტოვებულია.")
-        return
+# JSON-ის status -> Product.status (გასუფთავებული: strip + lower)
+STATUS_MAP = {
+    "hidden": "hidden",
+    "no_image": "no_image",
+    "in_stock": "in_stock",
+    "out_of_stock": "out_of_stock",
+    "file_img": "",        # სურათიანი = უსტატუსო
+    "fille_img": "",
+}
 
+# ეს სტატუსები საიტიდანაც დაიმალოს (is_active=False)
+DEACTIVATE = {"hidden"}
+
+
+def load_json():
     json_path = Path(__file__).resolve().parent / "fixed_products.json"
 
     if not json_path.exists():
@@ -33,6 +41,58 @@ def import_products():
 
     if not isinstance(data, list):
         raise ValueError("JSON უნდა შეიცავდეს პროდუქტების სიას.")
+
+    return data
+
+
+def sync_statuses(data):
+    """არსებულ პროდუქტებს status-ს უმატებს JSON-იდან.
+
+    ადმინში უკვე დაყენებულ status-ს არ ეხება.
+    FORCE_STATUS_SYNC=1 -> არსებულსაც გადაწერს.
+    """
+    force = os.environ.get("FORCE_STATUS_SYNC") == "1"
+    updated = 0
+    unknown = {}
+
+    for item in data:
+        if not isinstance(item, dict) or item.get("id") is None:
+            continue
+
+        raw = str(item.get("status") or "").strip().lower()
+        if not raw:
+            continue
+
+        if raw not in STATUS_MAP:
+            unknown[raw] = unknown.get(raw, 0) + 1
+            continue
+
+        new_status = STATUS_MAP[raw]
+
+        qs = Product.objects.filter(id=int(item["id"]))
+        if not force:
+            qs = qs.filter(status="")
+
+        fields = {"status": new_status}
+        if new_status in DEACTIVATE:
+            fields["is_active"] = False
+
+        updated += qs.update(**fields)
+
+    print(f"სტატუსი განახლდა: {updated}")
+    if unknown:
+        print(f"უცნობი სტატუსები (გამოტოვებულია): {unknown}")
+
+
+def import_products():
+    data = load_json()
+
+    # ბაზაში უკვე პროდუქტებია -> არსებულს არ ვეხებით (ადმინიდან შეცვლილი/წაშლილი
+    # პროდუქტები შენარჩუნდება), მხოლოდ ცარიელ status-ებს ვავსებთ JSON-იდან.
+    if Product.objects.exists():
+        print(f"ბაზაში უკვე {Product.objects.count()} პროდუქტია — იმპორტი გამოტოვებულია.")
+        sync_statuses(data)
+        return
 
     created = 0
     skipped = 0
@@ -121,6 +181,14 @@ def import_products():
                     defaults["category"] = category
 
                 defaults[img_field_name] = image
+
+                # status JSON-იდან
+                if "status" in fields:
+                    raw_status = str(item.get("status") or "").strip().lower()
+                    status_value = STATUS_MAP.get(raw_status, "")
+                    defaults["status"] = status_value
+                    if status_value in DEACTIVATE and "is_active" in fields:
+                        defaults["is_active"] = False
 
                 product_id = item.get("id")
 
