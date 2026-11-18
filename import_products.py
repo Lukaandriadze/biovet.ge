@@ -18,9 +18,11 @@ from categories.models import Category
 def import_products():
     json_path = Path(__file__).resolve().parent / "fixed_products.json"
 
-    if not json_path.exists():
-        raise FileNotFoundError(f"JSON ვერ მოიძებნა: {json_path}")
+    if Product.objects.exists():
+        print(f"ბაზაში უკვე {Product.objects.count()} პროდუქტია — იმპორტი გამოტოვებულია.")
+        return
 
+    json_path = Path(__file__).resolve().parent / "fixed_products.json"
     with json_path.open("r", encoding="utf-8") as file:
         data = json.load(file)
 

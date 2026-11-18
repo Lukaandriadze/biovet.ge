@@ -65,9 +65,8 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
 ]
-
 CSRF_TRUSTED_ORIGINS = [
-    "https://biovet-ge.onrender.com/",
+    "https://biovet-ge.onrender.com",
 ]
 # ------------------------------------------------------------------
 # Application definition
@@ -125,7 +124,22 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+_database_url = os.environ.get('DATABASE_URL', '').strip()
+if _database_url:
+    from urllib.parse import parse_qs, unquote, urlparse
 
+    _db = urlparse(_database_url)
+    _db_query = {k: v[0] for k, v in parse_qs(_db.query).items()}
+    DATABASES['default'] = {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': _db.path.lstrip('/'),
+        'USER': unquote(_db.username or ''),
+        'PASSWORD': unquote(_db.password or ''),
+        'HOST': _db.hostname or '',
+        'PORT': _db.port or '',
+        'CONN_MAX_AGE': 60,
+        'OPTIONS': {'sslmode': _db_query['sslmode']} if 'sslmode' in _db_query else {},
+    }
 
 # ------------------------------------------------------------------
 # Auth (მხოლოდ ადმინ-პანელისთვის)
