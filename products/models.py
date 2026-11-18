@@ -18,8 +18,10 @@ class Product(models.Model):
     status = models.CharField(
         "სტატუსი",
         max_length=30,
-        default="fille_img",
+        blank=True,
+        default="",
         choices=[
+            ("", "არ არის მითითებული"),
             ("hidden", "დამალული"),
             ("no_image", "სურათის გარეშე"),
             ("fille_img", "სურათიანი"),
