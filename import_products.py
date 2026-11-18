@@ -1,6 +1,4 @@
-
 import os
-import sys
 import json
 from pathlib import Path
 from decimal import Decimal, InvalidOperation
@@ -16,13 +14,17 @@ from categories.models import Category
 
 
 def import_products():
-    json_path = Path(__file__).resolve().parent / "fixed_products.json"
-
+    # ბაზაში უკვე პროდუქტებია -> არაფერს ვეხებით (ადმინიდან შეცვლილი/წაშლილი პროდუქტები შენარჩუნდება).
+    # JSON გამოიყენება მხოლოდ მაშინ, როცა ბაზა ცარიელია.
     if Product.objects.exists():
         print(f"ბაზაში უკვე {Product.objects.count()} პროდუქტია — იმპორტი გამოტოვებულია.")
         return
 
     json_path = Path(__file__).resolve().parent / "fixed_products.json"
+
+    if not json_path.exists():
+        raise FileNotFoundError(f"JSON ვერ მოიძებნა: {json_path}")
+
     with json_path.open("r", encoding="utf-8") as file:
         data = json.load(file)
 
@@ -33,7 +35,6 @@ def import_products():
         raise ValueError("JSON უნდა შეიცავდეს პროდუქტების სიას.")
 
     created = 0
-    updated = 0
     skipped = 0
 
     fields = {field.name for field in Product._meta.get_fields()}
@@ -44,6 +45,9 @@ def import_products():
         "BigIntegerField",
         "PositiveBigIntegerField",
     )
+
+    img_field_name = "img" if "img" in fields else "image"
+    img_max_len = getattr(Product._meta.get_field(img_field_name), "max_length", None)
 
     with transaction.atomic():
         for index, item in enumerate(data, start=1):
@@ -71,9 +75,7 @@ def import_products():
                     "სხვა",
                 )
 
-                category, _ = Category.objects.get_or_create(
-                    name=category_name
-                )
+                category, _ = Category.objects.get_or_create(name=category_name)
 
                 images = item.get("images", [])
                 if not isinstance(images, list):
@@ -88,6 +90,11 @@ def import_products():
                     "",
                 )
 
+                # Postgres-ში ძალიან გრძელი ტექსტი (მაგ. base64 სურათი) ველში არ ეტევა
+                if img_max_len and len(image) > img_max_len:
+                    print(f"{index}: სურათი ძალიან გრძელია ({len(image)}), გამოტოვებულია: {name}")
+                    image = ""
+
                 raw_price = item.get("price")
                 price = Decimal(str(raw_price or 0).strip())
 
@@ -96,9 +103,7 @@ def import_products():
 
                 if integer_price:
                     if price != price.to_integral_value():
-                        raise ValueError(
-                            f"ფასი მთელი რიცხვი უნდა იყოს: {price}"
-                        )
+                        raise ValueError(f"ფასი მთელი რიცხვი უნდა იყოს: {price}")
                     price = int(price)
 
                 defaults = {
@@ -115,49 +120,25 @@ def import_products():
                 if "category" in fields:
                     defaults["category"] = category
 
-                if "img" in fields:
-                    defaults["img"] = image
-                elif "image" in fields:
-                    defaults["image"] = image
+                defaults[img_field_name] = image
 
                 product_id = item.get("id")
 
                 if product_id is not None:
-                    product, was_created = Product.objects.update_or_create(
-                        id=int(product_id),
-                        defaults=defaults,
-                    )
+                    Product.objects.create(id=int(product_id), **defaults)
                 else:
-                    product, was_created = Product.objects.update_or_create(
-                        name=name,
-                        defaults=defaults,
-                    )
+                    Product.objects.create(**defaults)
 
-                if was_created:
-                    created += 1
-                else:
-                    updated += 1
+                created += 1
+                print(f"{index}/{len(data)} დაემატა: {name}")
 
-                print(
-                    f"{index}/{len(data)} "
-                    f"{'დაემატა' if was_created else 'განახლდა'}: {name}"
-                )
-
-            except (
-                ValueError,
-                TypeError,
-                InvalidOperation,
-                OverflowError,
-            ) as error:
+            except (ValueError, TypeError, InvalidOperation, OverflowError) as error:
                 skipped += 1
-                print(
-                    f"{index}/{len(data)} გამოტოვებულია: {error}"
-                )
+                print(f"{index}/{len(data)} გამოტოვებულია: {error}")
 
     print("\n========== იმპორტის შედეგი ==========")
     print(f"JSON-ში სულ: {len(data)}")
-    print(f"ახალი პროდუქტი: {created}")
-    print(f"განახლებული: {updated}")
+    print(f"დაემატა: {created}")
     print(f"გამოტოვებული: {skipped}")
     print(f"ბაზაში არსებული სულ: {Product.objects.count()}")
     print("=====================================")
