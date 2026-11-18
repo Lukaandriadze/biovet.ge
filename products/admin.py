@@ -1,4 +1,3 @@
-
 import csv
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -23,6 +22,25 @@ admin.site.index_title = "მართვის პანელი"
 
 
 # ==========================================================
+# დამხმარე ფუნქცია სურათის URL-ისთვის
+# ==========================================================
+
+def _get_image_url(obj):
+    """აბრუნებს სურათის URL-ს (ატვირთული ან გარე ბმული), ან ''-ს."""
+    if not obj or not getattr(obj, "pk", None):
+        return ""
+
+    image = getattr(obj, "image", None)
+    if image:
+        try:
+            return image.url
+        except ValueError:
+            pass
+
+    return getattr(obj, "img", "") or ""
+
+
+# ==========================================================
 # ფასის მასობრივი ცვლილება
 # ==========================================================
 
@@ -35,9 +53,7 @@ def _price_action(percent):
         products = list(queryset)
 
         for product in products:
-            product.price = (
-                product.price * factor
-            ).quantize(
+            product.price = (product.price * factor).quantize(
                 Decimal("0.01"),
                 rounding=ROUND_HALF_UP,
             )
@@ -50,10 +66,7 @@ def _price_action(percent):
             messages.SUCCESS,
         )
 
-    action.__name__ = (
-        f"price_{'plus' if percent > 0 else 'minus'}_{abs(percent)}"
-    )
-
+    action.__name__ = f"price_{'plus' if percent > 0 else 'minus'}_{abs(percent)}"
     return action
 
 
@@ -73,7 +86,6 @@ def _badge_action(key, text, label):
         )
 
     action.__name__ = f"badge_{key}"
-
     return action
 
 
@@ -84,7 +96,6 @@ def _badge_action(key, text, label):
 @admin.action(description="საიტზე გამოჩენა (ჩართვა)")
 def make_active(modeladmin, request, queryset):
     count = queryset.update(is_active=True)
-
     modeladmin.message_user(
         request,
         f"{count} პროდუქტი ჩანს საიტზე.",
@@ -95,7 +106,6 @@ def make_active(modeladmin, request, queryset):
 @admin.action(description="საიტიდან დამალვა (გამორთვა)")
 def make_inactive(modeladmin, request, queryset):
     count = queryset.update(is_active=False)
-
     modeladmin.message_user(
         request,
         f"{count} პროდუქტი დაიმალა.",
@@ -119,6 +129,8 @@ def duplicate_products(modeladmin, request, queryset):
         product.name = f"{product.name} (ასლი)"
         product.is_active = False
 
+        # თუ created_at არის auto_now_add, Django თავად განაახლებს;
+        # თუ არა — აქ შეგვიძლია ხელით განულება, თუ საჭიროა.
         product.save()
 
         count += 1
@@ -139,10 +151,7 @@ def export_products_csv(modeladmin, request, queryset):
     response = HttpResponse(
         content_type="text/csv; charset=utf-8-sig"
     )
-
-    response["Content-Disposition"] = (
-        'attachment; filename="products.csv"'
-    )
+    response["Content-Disposition"] = 'attachment; filename="products.csv"'
 
     writer = csv.writer(response)
 
@@ -161,20 +170,15 @@ def export_products_csv(modeladmin, request, queryset):
     products = queryset.select_related("category")
 
     for product in products.iterator():
-        image_url = product.img or ""
-
-        if product.image:
-            image_url = product.image.url
-
         writer.writerow([
             product.id,
             product.name,
-            product.category.name,
+            product.category.name if product.category else "",
             product.price,
             product.badge,
             product.status,
             "კი" if product.is_active else "არა",
-            image_url,
+            _get_image_url(product),
             product.description,
         ])
 
@@ -221,12 +225,14 @@ class ImageFilter(admin.SimpleListFilter):
     def queryset(self, request, queryset):
         if self.value() == "yes":
             return queryset.exclude(
-                models.Q(img="") & models.Q(image="")
+                (models.Q(img="") | models.Q(img__isnull=True))
+                & (models.Q(image="") | models.Q(image__isnull=True))
             )
 
         if self.value() == "no":
             return queryset.filter(
-                models.Q(img="") & models.Q(image="")
+                (models.Q(img="") | models.Q(img__isnull=True))
+                & (models.Q(image="") | models.Q(image__isnull=True))
             )
 
         return queryset
@@ -271,7 +277,7 @@ class ProductAdmin(admin.ModelAdmin):
         "category",
         "badge",
         ImageFilter,
-        "created_at",
+        ("created_at", admin.DateFieldListFilter),
     )
 
     search_fields = (
@@ -353,42 +359,27 @@ class ProductAdmin(admin.ModelAdmin):
 
     @admin.display(description="სურათი")
     def thumb(self, obj):
-        image_url = ""
-
-        if obj.image:
-            image_url = obj.image.url
-        elif obj.img:
-            image_url = obj.img
-
-        if image_url:
+        url = _get_image_url(obj)
+        if url:
             return format_html(
                 '<img src="{}" '
                 'style="height:44px;width:44px;'
                 'object-fit:contain;border-radius:6px;" '
-                'loading="lazy">',
-                image_url,
+                'loading="lazy" alt="">',
+                url,
             )
-
         return "—"
 
     @admin.display(description="მიმდინარე სურათი")
     def preview(self, obj):
-        if obj:
-            image_url = ""
-
-            if obj.image:
-                image_url = obj.image.url
-            elif obj.img:
-                image_url = obj.img
-
-            if image_url:
-                return format_html(
-                    '<img src="{}" '
-                    'style="max-height:200px;max-width:300px;'
-                    'object-fit:contain;border-radius:8px;">',
-                    image_url,
-                )
-
+        url = _get_image_url(obj)
+        if url:
+            return format_html(
+                '<img src="{}" '
+                'style="max-height:200px;max-width:300px;'
+                'object-fit:contain;border-radius:8px;" alt="">',
+                url,
+            )
         return "სურათი არ არის"
 
 
