@@ -14,7 +14,7 @@ class Product(models.Model):
     name = models.CharField("დასახელება", max_length=255)
     price = models.DecimalField("ფასი (₾)", max_digits=10, decimal_places=2)
     description = models.TextField("აღწერა", blank=True)
-    img = models.URLField("სურათის ბმული", max_length=1000, blank=True)
+    img = models.URLField("სურათის ბმული", max_length=5000, blank=True)
     image = models.ImageField(
         "სურათი (ატვირთვა)", upload_to="products/", blank=True,
         help_text="თუ სურათს ატვირთავ, ის ბმულს ანაცვლებს.",
