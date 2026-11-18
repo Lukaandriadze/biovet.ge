@@ -129,8 +129,6 @@ def duplicate_products(modeladmin, request, queryset):
         product.name = f"{product.name} (ასლი)"
         product.is_active = False
 
-        # თუ created_at არის auto_now_add, Django თავად განაახლებს;
-        # თუ არა — აქ შეგვიძლია ხელით განულება, თუ საჭიროა.
         product.save()
 
         count += 1
@@ -223,17 +221,14 @@ class ImageFilter(admin.SimpleListFilter):
         )
 
     def queryset(self, request, queryset):
+        empty_img = models.Q(img="") | models.Q(img__isnull=True)
+        empty_image = models.Q(image="") | models.Q(image__isnull=True)
+
         if self.value() == "yes":
-            return queryset.exclude(
-                (models.Q(img="") | models.Q(img__isnull=True))
-                & (models.Q(image="") | models.Q(image__isnull=True))
-            )
+            return queryset.exclude(empty_img & empty_image)
 
         if self.value() == "no":
-            return queryset.filter(
-                (models.Q(img="") | models.Q(img__isnull=True))
-                & (models.Q(image="") | models.Q(image__isnull=True))
-            )
+            return queryset.filter(empty_img & empty_image)
 
         return queryset
 
@@ -392,6 +387,14 @@ class ProfileInline(admin.StackedInline):
     can_delete = False
     extra = 0
     verbose_name_plural = "პროფილი"
+
+
+# მნიშვნელოვანია: ჯერ ვხსნით ნაგულისხმევ რეგისტრაციას,
+# რადგან django.contrib.auth ავტომატურად არეგისტრირებს User-ს.
+try:
+    admin.site.unregister(User)
+except admin.sites.NotRegistered:
+    pass
 
 
 @admin.register(User)
