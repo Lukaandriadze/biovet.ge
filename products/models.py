@@ -15,6 +15,16 @@ class Product(models.Model):
     price = models.DecimalField("ფასი (₾)", max_digits=10, decimal_places=2)
     description = models.TextField("აღწერა", blank=True)
     img = models.URLField("სურათის ბმული", max_length=5000, blank=True)
+    status = models.CharField(
+        "სტატუსი",
+        max_length=30,
+        default="fille_img",
+        choices=[
+            ("hidden", "დამალული"),
+            ("no_image", "სურათის გარეშე"),
+            ("fille_img", "სურათიანი"),
+        ],
+    )
     image = models.ImageField(
         "სურათი (ატვირთვა)", upload_to="products/", blank=True,
         help_text="თუ სურათს ატვირთავ, ის ბმულს ანაცვლებს.",
