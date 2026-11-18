@@ -3,6 +3,7 @@ import csv
 from decimal import Decimal, ROUND_HALF_UP
 
 from django import forms
+from django.db import models
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
@@ -29,8 +30,7 @@ def _price_action(percent):
     factor = Decimal(100 + percent) / Decimal(100)
     sign = "+" if percent > 0 else ""
 
-    # მნიშვნელოვანი: %% საჭიროა Django Admin-ის action description-ში
-    @admin.action(description=f"ფასის შეცვლა: {sign}{percent}%%")
+    @admin.action(description=f"ფასის შეცვლა: {sign}{percent}%")
     def action(modeladmin, request, queryset):
         products = list(queryset)
 
@@ -119,8 +119,6 @@ def duplicate_products(modeladmin, request, queryset):
         product.name = f"{product.name} (ასლი)"
         product.is_active = False
 
-        # ატვირთული სურათის ფაილი უცვლელი რჩება;
-        # ასლი საიტზე დამალული იქნება.
         product.save()
 
         count += 1
@@ -154,6 +152,7 @@ def export_products_csv(modeladmin, request, queryset):
         "კატეგორია",
         "ფასი",
         "ბეჯი",
+        "სტატუსი",
         "ჩანს საიტზე",
         "სურათი",
         "აღწერა",
@@ -173,6 +172,7 @@ def export_products_csv(modeladmin, request, queryset):
             product.category.name,
             product.price,
             product.badge,
+            product.status,
             "კი" if product.is_active else "არა",
             image_url,
             product.description,
@@ -236,10 +236,6 @@ class ImageFilter(admin.SimpleListFilter):
 # პროდუქტის ადმინისტრირება
 # ==========================================================
 
-if admin.site.is_registered(Product):
-    admin.site.unregister(Product)
-
-
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     form = ProductAdminForm
@@ -251,19 +247,26 @@ class ProductAdmin(admin.ModelAdmin):
         "category",
         "price",
         "badge",
+        "status",
         "is_active",
         "created_at",
     )
 
-    list_display_links = ("id", "thumb", "name")
+    list_display_links = (
+        "id",
+        "thumb",
+        "name",
+    )
 
     list_editable = (
         "price",
         "badge",
+        "status",
         "is_active",
     )
 
     list_filter = (
+        "status",
         "is_active",
         "category",
         "badge",
@@ -304,11 +307,7 @@ class ProductAdmin(admin.ModelAdmin):
         _price_action(-20),
 
         _badge_action("new", "ახალი", "ბეჯი: ახალი"),
-        _badge_action(
-            "sale",
-            "ფასდაკლება",
-            "ბეჯი: ფასდაკლება",
-        ),
+        _badge_action("sale", "ფასდაკლება", "ბეჯი: ფასდაკლება"),
         _badge_action("hit", "ჰიტი", "ბეჯი: ჰიტი"),
         _badge_action("clear", "", "ბეჯის წაშლა"),
     ]
@@ -322,6 +321,7 @@ class ProductAdmin(admin.ModelAdmin):
                     "category",
                     "price",
                     "badge",
+                    "status",
                     "is_active",
                 )
             },
@@ -403,10 +403,6 @@ class ProfileInline(admin.StackedInline):
     verbose_name_plural = "პროფილი"
 
 
-if admin.site.is_registered(User):
-    admin.site.unregister(User)
-
-
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     inlines = [ProfileInline]
@@ -440,10 +436,6 @@ class UserAdmin(BaseUserAdmin):
 # პროფილების ადმინისტრირება
 # ==========================================================
 
-if admin.site.is_registered(Profile):
-    admin.site.unregister(Profile)
-
-
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
     list_display = (
@@ -464,52 +456,3 @@ class ProfileAdmin(admin.ModelAdmin):
     )
 
     raw_id_fields = ("user",)
-
-
-
-
-
-
-
-
-
-
-from django.contrib import admin
-from .models import Product, Profile
-
-
-@admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
-    list_display = (
-        "id",
-        "name",
-        "price",
-        "category",
-        "status",
-        "is_active",
-        "created_at",
-    )
-
-    list_filter = (
-        "status",
-        "is_active",
-        "category",
-    )
-
-    search_fields = (
-        "name",
-        "description",
-    )
-
-    list_per_page = 50
-
-
-@admin.register(Profile)
-class ProfileAdmin(admin.ModelAdmin):
-    list_display = (
-        "id",
-        "user",
-        "first_name",
-        "last_name",
-        "phone",
-    )
