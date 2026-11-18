@@ -17,6 +17,7 @@ class Product(models.Model):
     img = models.URLField("სურათის ბმული", max_length=5000, blank=True)
     STATUS_CHOICES = (
         ("no_image", "სურათის გარეშე"),
+        ("hidden", "დამალული"),
         ("in_stock", "მარაგშია"),
         ("out_of_stock", "ამოიწურა"),
     )
