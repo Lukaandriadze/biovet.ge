@@ -15,17 +15,19 @@ class Product(models.Model):
     price = models.DecimalField("ფასი (₾)", max_digits=10, decimal_places=2)
     description = models.TextField("აღწერა", blank=True)
     img = models.URLField("სურათის ბმული", max_length=5000, blank=True)
+    STATUS_CHOICES = (
+        ("no_image", "სურათის გარეშე"),
+        ("in_stock", "მარაგშია"),
+        ("out_of_stock", "ამოიწურა"),
+    )
+
     status = models.CharField(
-        "სტატუსი",
-        max_length=30,
+        max_length=20,
+        choices=STATUS_CHOICES,
         blank=True,
         default="",
-        choices=[
-            ("", "არ არის მითითებული"),
-            ("hidden", "დამალული"),
-            ("no_image", "სურათის გარეშე"),
-            ("fille_img", "სურათიანი"),
-        ],
+        verbose_name="სტატუსი",
+        help_text="ცარიელი = უსტატუსო პროდუქტი",
     )
     image = models.ImageField(
         "სურათი (ატვირთვა)", upload_to="products/", blank=True,

@@ -1,4 +1,3 @@
-
 import csv
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -6,6 +5,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
+from django.db import models
 from django.http import HttpResponse
 from django.utils.html import format_html
 
@@ -29,7 +29,6 @@ def _price_action(percent):
     factor = Decimal(100 + percent) / Decimal(100)
     sign = "+" if percent > 0 else ""
 
-    # მნიშვნელოვანი: %% საჭიროა Django Admin-ის action description-ში
     @admin.action(description=f"ფასის შეცვლა: {sign}{percent}%%")
     def action(modeladmin, request, queryset):
         products = list(queryset)
@@ -119,8 +118,6 @@ def duplicate_products(modeladmin, request, queryset):
         product.name = f"{product.name} (ასლი)"
         product.is_active = False
 
-        # ატვირთული სურათის ფაილი უცვლელი რჩება;
-        # ასლი საიტზე დამალული იქნება.
         product.save()
 
         count += 1
@@ -233,6 +230,51 @@ class ImageFilter(admin.SimpleListFilter):
 
 
 # ==========================================================
+# სტატუსის ფილტრი (უსტატუსო + სტატუსიანი)
+# ==========================================================
+
+class StatusFilter(admin.SimpleListFilter):
+    title = "სტატუსი"
+    parameter_name = "status"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("no_image", "სურათის გარეშე"),
+            ("has_image", "სურათიანი"),
+            ("active", "აქტიური (საიტზე ჩანს)"),
+            ("inactive", "დამალული"),
+            ("empty", "უსტატუსო (სურათის გარეშე + დამალული)"),
+        )
+
+    def queryset(self, request, queryset):
+        value = self.value()
+
+        if value == "no_image":
+            return queryset.filter(
+                models.Q(img="") & models.Q(image="")
+            )
+
+        if value == "has_image":
+            return queryset.exclude(
+                models.Q(img="") & models.Q(image="")
+            )
+
+        if value == "active":
+            return queryset.filter(is_active=True)
+
+        if value == "inactive":
+            return queryset.filter(is_active=False)
+
+        if value == "empty":
+            # "უსტატუსო" = არც სურათი აქვს და არც აქტიურია
+            return queryset.filter(
+                models.Q(img="") & models.Q(image="")
+            ).filter(is_active=False)
+
+        return queryset
+
+
+# ==========================================================
 # პროდუქტის ადმინისტრირება
 # ==========================================================
 
@@ -267,6 +309,7 @@ class ProductAdmin(admin.ModelAdmin):
         "is_active",
         "category",
         "badge",
+        StatusFilter,      # ← ახალი სტატუსის ფილტრი
         ImageFilter,
         "created_at",
     )
