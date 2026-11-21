@@ -98,6 +98,14 @@ for number, item in enumerate(data, start=1):
             f"ID: {item.get('id', '?')} — {error}"
         )
 
+
+from django.core.management.color import no_style
+from django.db import connection
+with connection.cursor() as cursor:
+    for sql in connection.ops.sequence_reset_sql(no_style(), [Product]):
+        cursor.execute(sql)
+
+
 print("\n============================")
 print("ჩატვირთვა დასრულდა!")
 print(f"ახალი პროდუქტი: {created_count}")

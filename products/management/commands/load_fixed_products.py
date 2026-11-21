@@ -8,7 +8,12 @@ from django.db import transaction
 
 from products.models import Product
 from categories.models import Category
+# იყო:
+from django.db import transaction
 
+# გახდა:
+from django.core.management.color import no_style
+from django.db import connection, transaction
 
 class Command(BaseCommand):
     help = "Load products from fixed_products.json"
@@ -103,7 +108,13 @@ class Command(BaseCommand):
                     self.stderr.write(
                         f"Skipped product {item.get('id', '?')}: {error}"
                     )
+        with connection.cursor() as cursor:
+            for sql in connection.ops.sequence_reset_sql(no_style(), [Product]):
+                cursor.execute(sql)
 
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Finished! ...Created: {created_count}, "
         self.stdout.write(
             self.style.SUCCESS(
                 f"Finished! Created: {created_count}, "
