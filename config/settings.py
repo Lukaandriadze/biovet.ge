@@ -61,12 +61,13 @@ if not DEBUG:
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 ALLOWED_HOSTS = [
+    "biovet.com.ge",
+    "www.biovet.com.ge",
     "biovet-ge.onrender.com",
-    "localhost",
-    "127.0.0.1",
 ]
 CSRF_TRUSTED_ORIGINS = [
-    "https://biovet-ge.onrender.com",
+    "https://biovet.com.ge",
+    "https://www.biovet.com.ge",
 ]
 # ------------------------------------------------------------------
 # Application definition
